@@ -1,89 +1,165 @@
 //@version=6
-indicator("HTF Candle Overlay", overlay=true, max_boxes_count=20, max_lines_count=20, max_labels_count=20)
+indicator("HTF Candle Overlay", overlay=true, max_boxes_count=100, max_lines_count=100, max_labels_count=100)
 
 // ================================
 // Inputs
 // ================================
-htfTimeframe = input.timeframe("60", "Higher Timeframe")
-offsetBars   = input.int(10, "Offset From Current Candle", minval=1, maxval=100)
-bodyWidth    = input.int(4, "Candle Body Width", minval=1, maxval=20)
+htfTimeframe = input.timeframe("60", "Higher Timeframe", group="HTF Settings")
+candlesToShow = input.int(3, "Candles To Display", minval=1, maxval=6, group="HTF Settings")
 
-bullColor    = input.color(color.new(color.green, 20), "Bull Candle Color")
-bearColor    = input.color(color.new(color.red, 20), "Bear Candle Color")
-wickColor    = input.color(color.white, "Wick Color")
-borderColor  = input.color(color.white, "Border Color")
+offsetBars = input.int(10, "Offset From Current Candle", minval=1, maxval=100, group="Layout")
+spacingBars = input.int(8, "Spacing Between Candles", minval=3, maxval=30, group="Layout")
+bodyWidth = input.int(2, "Candle Body Width", minval=1, maxval=10, group="Layout")
 
-showLabel    = input.bool(true, "Show Label")
+bullColor = input.color(color.green, "Bull Candle Color", group="Style")
+bearColor = input.color(color.red, "Bear Candle Color", group="Style")
+currentTransparency = input.int(55, "Current Candle Transparency", minval=0, maxval=90, group="Style")
+completedTransparency = input.int(20, "Completed Candle Transparency", minval=0, maxval=90, group="Style")
+wickColor = input.color(color.white, "Wick Color", group="Style")
+showBorders = input.bool(true, "Show Borders", group="Style")
+borderColor = input.color(color.white, "Border Color", group="Style")
 
-// ================================
-// Higher Timeframe OHLC
-// ================================
-htfOpen  = request.security(syminfo.tickerid, htfTimeframe, open)
-htfHigh  = request.security(syminfo.tickerid, htfTimeframe, high)
-htfLow   = request.security(syminfo.tickerid, htfTimeframe, low)
-htfClose = request.security(syminfo.tickerid, htfTimeframe, close)
-
-// ================================
-// Candle Calculations
-// ================================
-isBull = htfClose >= htfOpen
-
-bodyTop    = math.max(htfOpen, htfClose)
-bodyBottom = math.min(htfOpen, htfClose)
-
-candleColor = isBull ? bullColor : bearColor
-
-// Future position on chart
-candleCenter = bar_index + offsetBars
-candleLeft   = candleCenter - bodyWidth
-candleRight  = candleCenter + bodyWidth
+showLabels = input.bool(true, "Show Candle Labels", group="Labels")
+showOHLC = input.bool(false, "Show OHLC Values", group="Labels")
 
 // ================================
-// Drawing Objects
+// Higher Timeframe OHLC Data
 // ================================
-var box   candleBody = na
-var line  candleWick = na
-var label candleInfo = na
+[o0, h0, l0, c0,
+ o1, h1, l1, c1,
+ o2, h2, l2, c2,
+ o3, h3, l3, c3,
+ o4, h4, l4, c4,
+ o5, h5, l5, c5] = request.security(
+     syminfo.tickerid,
+     htfTimeframe,
+     [
+         open, high, low, close,
+         open[1], high[1], low[1], close[1],
+         open[2], high[2], low[2], close[2],
+         open[3], high[3], low[3], close[3],
+         open[4], high[4], low[4], close[4],
+         open[5], high[5], low[5], close[5]
+     ]
+ )
 
+// ================================
+// Object Storage
+// ================================
+var array<box> candleBodies = array.new_box()
+var array<line> candleWicks = array.new_line()
+var array<label> candleLabels = array.new_label()
+
+// ================================
+// Helper: Delete Old Objects
+// ================================
+clearObjects() =>
+    while array.size(candleBodies) > 0
+        box.delete(array.pop(candleBodies))
+
+    while array.size(candleWicks) > 0
+        line.delete(array.pop(candleWicks))
+
+    while array.size(candleLabels) > 0
+        label.delete(array.pop(candleLabels))
+
+// ================================
+// Helper: Build Label Text
+// ================================
+getLabelText(int index, float candleOpen, float candleHigh, float candleLow, float candleClose) =>
+    baseText = index == 0 ? "Current" : "-" + str.tostring(index)
+
+    if showOHLC
+        baseText +=
+             "\nO: " + str.tostring(candleOpen, format.mintick) +
+             "\nH: " + str.tostring(candleHigh, format.mintick) +
+             "\nL: " + str.tostring(candleLow, format.mintick) +
+             "\nC: " + str.tostring(candleClose, format.mintick)
+
+    baseText
+
+// ================================
+// Draw Floating Candles
+// ================================
 if barstate.islast
-    // Delete old objects before redrawing
-    box.delete(candleBody)
-    line.delete(candleWick)
-    label.delete(candleInfo)
+    clearObjects()
 
-    // Draw wick
-    candleWick := line.new(
-         x1=candleCenter,
-         y1=htfHigh,
-         x2=candleCenter,
-         y2=htfLow,
-         color=wickColor,
-         width=2
-     )
+    for i = 0 to candlesToShow - 1
+        candleOpen = switch i
+            0 => o0
+            1 => o1
+            2 => o2
+            3 => o3
+            4 => o4
+            5 => o5
 
-    // Draw body
-    candleBody := box.new(
-         left=candleLeft,
-         top=bodyTop,
-         right=candleRight,
-         bottom=bodyBottom,
-         bgcolor=candleColor,
-         border_color=borderColor
-     )
+        candleHigh = switch i
+            0 => h0
+            1 => h1
+            2 => h2
+            3 => h3
+            4 => h4
+            5 => h5
 
-    // Optional label
-    if showLabel
-        labelText = "HTF " + htfTimeframe +
-             "\nO: " + str.tostring(htfOpen) +
-             "\nH: " + str.tostring(htfHigh) +
-             "\nL: " + str.tostring(htfLow) +
-             "\nC: " + str.tostring(htfClose)
+        candleLow = switch i
+            0 => l0
+            1 => l1
+            2 => l2
+            3 => l3
+            4 => l4
+            5 => l5
 
-        candleInfo := label.new(
-             x=candleRight + 1,
-             y=htfHigh,
-             text=labelText,
-             style=label.style_label_left,
-             textcolor=color.white,
-             color=color.new(color.black, 20)
+        candleClose = switch i
+            0 => c0
+            1 => c1
+            2 => c2
+            3 => c3
+            4 => c4
+            5 => c5
+
+        isBull = candleClose >= candleOpen
+
+        candleTransparency = i == 0 ? currentTransparency : completedTransparency
+        candleColor = isBull ? color.new(bullColor, candleTransparency) : color.new(bearColor, candleTransparency)
+        finalBorderColor = showBorders ? borderColor : color.new(borderColor, 100)
+
+        bodyTop = math.max(candleOpen, candleClose)
+        bodyBottom = math.min(candleOpen, candleClose)
+
+        candleCenter = bar_index + offsetBars + ((candlesToShow - 1 - i) * spacingBars)
+        candleLeft = candleCenter - bodyWidth
+        candleRight = candleCenter + bodyWidth
+
+        wick = line.new(
+             x1=candleCenter,
+             y1=candleHigh,
+             x2=candleCenter,
+             y2=candleLow,
+             color=wickColor,
+             width=2
          )
+
+        body = box.new(
+             left=candleLeft,
+             top=bodyTop,
+             right=candleRight,
+             bottom=bodyBottom,
+             bgcolor=candleColor,
+             border_color=finalBorderColor
+         )
+
+        array.push(candleWicks, wick)
+        array.push(candleBodies, body)
+
+        if showLabels
+            candleLabel = label.new(
+                 x=candleCenter,
+                 y=candleLow,
+                 text=getLabelText(i, candleOpen, candleHigh, candleLow, candleClose),
+                 style=label.style_label_up,
+                 textcolor=color.white,
+                 color=color.new(color.black, 70),
+                 size=size.small
+             )
+
+            array.push(candleLabels, candleLabel)
