@@ -1,14 +1,22 @@
 //@version=6
-indicator("HTF Candle Overlay", overlay=true, max_boxes_count=50, max_lines_count=50, max_labels_count=50)
+indicator("HTF Candle Overlay", overlay=true, max_boxes_count=20, max_lines_count=20, max_labels_count=20)
 
 // ================================
 // Inputs
 // ================================
 htfTimeframe = input.timeframe("60", "Higher Timeframe")
+offsetBars   = input.int(10, "Offset From Current Candle", minval=1, maxval=100)
+bodyWidth    = input.int(4, "Candle Body Width", minval=1, maxval=20)
+
+bullColor    = input.color(color.new(color.green, 20), "Bull Candle Color")
+bearColor    = input.color(color.new(color.red, 20), "Bear Candle Color")
+wickColor    = input.color(color.white, "Wick Color")
+borderColor  = input.color(color.white, "Border Color")
+
 showLabel    = input.bool(true, "Show Label")
 
 // ================================
-// Higher Timeframe Data
+// Higher Timeframe OHLC
 // ================================
 htfOpen  = request.security(syminfo.tickerid, htfTimeframe, open)
 htfHigh  = request.security(syminfo.tickerid, htfTimeframe, high)
@@ -16,26 +24,66 @@ htfLow   = request.security(syminfo.tickerid, htfTimeframe, low)
 htfClose = request.security(syminfo.tickerid, htfTimeframe, close)
 
 // ================================
-// Plot HTF OHLC as simple lines
+// Candle Calculations
 // ================================
-plot(htfOpen,  title="HTF Open",  linewidth=1)
-plot(htfHigh,  title="HTF High",  linewidth=1)
-plot(htfLow,   title="HTF Low",   linewidth=1)
-plot(htfClose, title="HTF Close", linewidth=2)
+isBull = htfClose >= htfOpen
+
+bodyTop    = math.max(htfOpen, htfClose)
+bodyBottom = math.min(htfOpen, htfClose)
+
+candleColor = isBull ? bullColor : bearColor
+
+// Future position on chart
+candleCenter = bar_index + offsetBars
+candleLeft   = candleCenter - bodyWidth
+candleRight  = candleCenter + bodyWidth
 
 // ================================
-// Simple Learning Label
+// Drawing Objects
 // ================================
-var label infoLabel = na
+var box   candleBody = na
+var line  candleWick = na
+var label candleInfo = na
 
-if barstate.islast and showLabel
-    label.delete(infoLabel)
-    infoText = "HTF: " + htfTimeframe + "\nOpen: " + str.tostring(htfOpen) + "\nHigh: " + str.tostring(htfHigh) + "\nLow: " + str.tostring(htfLow) + "\nClose: " + str.tostring(htfClose)
-    infoLabel := label.new(
-         x=bar_index,
-         y=high,
-         text=infoText,
-         style=label.style_label_left,
-         textcolor=color.white,
-         color=color.new(color.black, 20)
+if barstate.islast
+    // Delete old objects before redrawing
+    box.delete(candleBody)
+    line.delete(candleWick)
+    label.delete(candleInfo)
+
+    // Draw wick
+    candleWick := line.new(
+         x1=candleCenter,
+         y1=htfHigh,
+         x2=candleCenter,
+         y2=htfLow,
+         color=wickColor,
+         width=2
      )
+
+    // Draw body
+    candleBody := box.new(
+         left=candleLeft,
+         top=bodyTop,
+         right=candleRight,
+         bottom=bodyBottom,
+         bgcolor=candleColor,
+         border_color=borderColor
+     )
+
+    // Optional label
+    if showLabel
+        labelText = "HTF " + htfTimeframe +
+             "\nO: " + str.tostring(htfOpen) +
+             "\nH: " + str.tostring(htfHigh) +
+             "\nL: " + str.tostring(htfLow) +
+             "\nC: " + str.tostring(htfClose)
+
+        candleInfo := label.new(
+             x=candleRight + 1,
+             y=htfHigh,
+             text=labelText,
+             style=label.style_label_left,
+             textcolor=color.white,
+             color=color.new(color.black, 20)
+         )
