@@ -28,6 +28,9 @@ showHighLowLevels = input.bool(true, "Show High / Low", group="Levels")
 showCloseLevel = input.bool(false, "Show Close", group="Levels")
 levelLineLength = input.int(30, "Level Line Length", minval=5, maxval=200, group="Levels")
 
+showDashboard = input.bool(true, "Show Dashboard", group="Dashboard")
+dashboardPosition = input.string("Top Right", "Dashboard Position", options=["Top Right", "Bottom Right", "Top Left", "Bottom Left"], group="Dashboard")
+
 // ================================
 // Higher Timeframe OHLC Data
 // ================================
@@ -58,6 +61,8 @@ var array<label> candleLabels = array.new_label()
 
 var array<line> levelLines = array.new_line()
 var array<label> levelLabels = array.new_label()
+
+var table dashboard = table.new(position.top_right, 2, 7, border_width=1)
 
 // ================================
 // Helper: Delete Old Objects
@@ -120,6 +125,13 @@ drawLevel(float price, string levelName, color lineColor) =>
     array.push(levelLines, levelLine)
     array.push(levelLabels, levelLabel)
 
+getTablePosition(string pos) =>
+    switch pos
+        "Top Right" => position.top_right
+        "Bottom Right" => position.bottom_right
+        "Top Left" => position.top_left
+        "Bottom Left" => position.bottom_left
+        
 // ================================
 // Draw Floating Candles
 // ================================
@@ -217,3 +229,31 @@ if barstate.islast
 
         if showCloseLevel
             drawLevel(c0, "HTF Close", color.blue)
+
+    // Draw Dashboard
+    if showDashboard
+        rangeValue = h0 - l0
+        direction = c0 >= o0 ? "Bullish" : "Bearish"
+
+        table.set_position(dashboard, getTablePosition(dashboardPosition))
+
+        table.cell(dashboard, 0, 0, "HTF", text_color=color.white, bgcolor=color.new(color.black, 20))
+        table.cell(dashboard, 1, 0, htfTimeframe, text_color=color.white, bgcolor=color.new(color.black, 20))
+
+        table.cell(dashboard, 0, 1, "Open", text_color=color.white)
+        table.cell(dashboard, 1, 1, str.tostring(o0, format.mintick), text_color=color.white)
+
+        table.cell(dashboard, 0, 2, "High", text_color=color.white)
+        table.cell(dashboard, 1, 2, str.tostring(h0, format.mintick), text_color=color.white)
+
+        table.cell(dashboard, 0, 3, "Low", text_color=color.white)
+        table.cell(dashboard, 1, 3, str.tostring(l0, format.mintick), text_color=color.white)
+
+        table.cell(dashboard, 0, 4, "Close", text_color=color.white)
+        table.cell(dashboard, 1, 4, str.tostring(c0, format.mintick), text_color=color.white)
+
+        table.cell(dashboard, 0, 5, "Range", text_color=color.white)
+        table.cell(dashboard, 1, 5, str.tostring(rangeValue, format.mintick), text_color=color.white)
+
+        table.cell(dashboard, 0, 6, "Direction", text_color=color.white)
+        table.cell(dashboard, 1, 6, direction, text_color=color.white)
