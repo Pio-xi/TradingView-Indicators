@@ -1,0 +1,41 @@
+//@version=6
+indicator("HTF Candle Overlay", overlay=true, max_boxes_count=50, max_lines_count=50, max_labels_count=50)
+
+// ================================
+// Inputs
+// ================================
+htfTimeframe = input.timeframe("60", "Higher Timeframe")
+showLabel    = input.bool(true, "Show Label")
+
+// ================================
+// Higher Timeframe Data
+// ================================
+htfOpen  = request.security(syminfo.tickerid, htfTimeframe, open)
+htfHigh  = request.security(syminfo.tickerid, htfTimeframe, high)
+htfLow   = request.security(syminfo.tickerid, htfTimeframe, low)
+htfClose = request.security(syminfo.tickerid, htfTimeframe, close)
+
+// ================================
+// Plot HTF OHLC as simple lines
+// ================================
+plot(htfOpen,  title="HTF Open",  linewidth=1)
+plot(htfHigh,  title="HTF High",  linewidth=1)
+plot(htfLow,   title="HTF Low",   linewidth=1)
+plot(htfClose, title="HTF Close", linewidth=2)
+
+// ================================
+// Simple Learning Label
+// ================================
+var label infoLabel = na
+
+if barstate.islast and showLabel
+    label.delete(infoLabel)
+    infoText = "HTF: " + htfTimeframe + "\nOpen: " + str.tostring(htfOpen) + "\nHigh: " + str.tostring(htfHigh) + "\nLow: " + str.tostring(htfLow) + "\nClose: " + str.tostring(htfClose)
+    infoLabel := label.new(
+         x=bar_index,
+         y=high,
+         text=infoText,
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(color.black, 20)
+     )
