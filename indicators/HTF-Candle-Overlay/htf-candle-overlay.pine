@@ -22,6 +22,12 @@ borderColor = input.color(color.white, "Border Color", group="Style")
 showLabels = input.bool(true, "Show Candle Labels", group="Labels")
 showOHLC = input.bool(false, "Show OHLC Values", group="Labels")
 
+showLevels = input.bool(true, "Show Current HTF Levels", group="Levels")
+showOpenLevel = input.bool(true, "Show Open", group="Levels")
+showHighLowLevels = input.bool(true, "Show High / Low", group="Levels")
+showCloseLevel = input.bool(false, "Show Close", group="Levels")
+levelLineLength = input.int(30, "Level Line Length", minval=5, maxval=200, group="Levels")
+
 // ================================
 // Higher Timeframe OHLC Data
 // ================================
@@ -50,6 +56,9 @@ var array<box> candleBodies = array.new_box()
 var array<line> candleWicks = array.new_line()
 var array<label> candleLabels = array.new_label()
 
+var array<line> levelLines = array.new_line()
+var array<label> levelLabels = array.new_label()
+
 // ================================
 // Helper: Delete Old Objects
 // ================================
@@ -62,6 +71,12 @@ clearObjects() =>
 
     while array.size(candleLabels) > 0
         label.delete(array.pop(candleLabels))
+
+    while array.size(levelLines) > 0
+        line.delete(array.pop(levelLines))
+
+    while array.size(levelLabels) > 0
+        label.delete(array.pop(levelLabels))
 
 // ================================
 // Helper: Build Label Text
@@ -77,6 +92,33 @@ getLabelText(int index, float candleOpen, float candleHigh, float candleLow, flo
              "\nC: " + str.tostring(candleClose, format.mintick)
 
     baseText
+
+// ================================
+// Helper: Draw HTF Level
+// ================================
+drawLevel(float price, string levelName, color lineColor) =>
+    levelLine = line.new(
+         x1=bar_index,
+         y1=price,
+         x2=bar_index + levelLineLength,
+         y2=price,
+         color=lineColor,
+         width=1,
+         style=line.style_dashed
+     )
+
+    levelLabel = label.new(
+         x=bar_index + levelLineLength,
+         y=price,
+         text=levelName + " " + str.tostring(price, format.mintick),
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(lineColor, 70),
+         size=size.small
+     )
+
+    array.push(levelLines, levelLine)
+    array.push(levelLabels, levelLabel)
 
 // ================================
 // Draw Floating Candles
@@ -163,3 +205,15 @@ if barstate.islast
              )
 
             array.push(candleLabels, candleLabel)
+
+    // Draw current HTF price levels after the candle loop
+    if showLevels
+        if showOpenLevel
+            drawLevel(o0, "HTF Open", color.gray)
+
+        if showHighLowLevels
+            drawLevel(h0, "HTF High", color.green)
+            drawLevel(l0, "HTF Low", color.red)
+
+        if showCloseLevel
+            drawLevel(c0, "HTF Close", color.blue)
